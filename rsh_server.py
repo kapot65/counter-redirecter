@@ -53,6 +53,10 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             
             if ext_proc:
                 ext_proc.wait()
+                if "rsb_file_abs" in ext_meta:
+                    fname = ext_meta["rsb_file_abs"]
+                    subprocess.Popen(["zip", "-1", "%s.zip"%(fname), "-rm", 
+                                      fname])
             
         self.send_message(meta, message["data"], 
                           message["header"]["data_type"])
@@ -89,6 +93,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                 
             ext_proc = subprocess.Popen([args.lan10_bin, fname_abs, "-s"])
             ext_meta["rsb_file"] = fname
+            ext_meta["rsb_file_abs"] = fname_abs
         
         self.forward_message(meta, message['data'], ext_meta, ext_proc)
     

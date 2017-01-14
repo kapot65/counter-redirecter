@@ -1,0 +1,13 @@
+[Unit]
+ Description=Counter redirecter server
+
+[Service]
+ User=chernov
+ WorkingDirectory=/home/chernov/pyprojects/counter-redirecter
+ ExecStart=/usr/bin/python3 rsh_server.py "/home/chernov/qtprojects/build-LAn10-12PCI_base-Desktop-Release/Lan10-12PCI-Base" --host 192.168.111.21 -p 39812
+ Restart=always
+ RestartSec=60
+
+[Install]
+ WantedBy=multi-user.target
+
