@@ -11,6 +11,7 @@ import sys
 import json
 import time
 import asyncio
+import subprocess
 from argparse import ArgumentParser
 
 from dftcp import DataforgeEnvelopeProtocol
@@ -38,7 +39,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
         else:
             return False
     
-    def cbk(self, message, client_obj, ext_meta):
+    def cbk(self, message, client_obj, ext_meta, ext_proc=None):
         meta = message["meta"]
         
         if "ext_meta" in meta:
@@ -46,16 +47,22 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
         else:
             meta["ext_meta"] = ext_meta
             
+        if not self.check_junk(message["meta"]):
+            
+            client_obj.transport.close()
+            
+            if ext_proc:
+                ext_proc.wait()
+            
         self.send_message(meta, message["data"], 
                           message["header"]["data_type"])
         
-        if not self.check_junk(message["meta"]):
-            client_obj.transport.close()
         
-    def forward_message(self, meta, data, ext_meta={}):
+    def forward_message(self, meta, data, ext_meta={}, ext_proc=None):
         loop = asyncio.new_event_loop()
         
-        callback = lambda msg, client: self.cbk(msg, client, ext_meta)
+        callback = lambda msg, client: self.cbk(msg, client, 
+                                                ext_meta, ext_proc)
         client = lambda: DFClient(loop, meta, callback=callback, 
                                   timeout_sec=args.timeout)
         
@@ -68,20 +75,22 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
         
         meta = message['meta']
         ext_meta = {}
+        ext_proc = None
   
         if 'command_type' in meta and meta['command_type'] == "acquire_point":
             cur_patt = pattern
             cur_patt["aquisition_time"] = int(meta["acquisition_time"])*1000
             
-            #~/qtprojects/build-LAn10-12PCI_base-Desktop-Release/Lan10-12PCI-Base out.rsb -s
+            fname = "%s.rsb"%(time.strftime("%Y%m%d-%H%M%S"))
+            fname_abs = os.path.join(args.out_dir, fname)
             
-            filename = "%s.rsb"%(time.strftime("%Y%m%d-%H%M%S"))
-            ext_meta["rsb_file"] = filename
-            
-            with open(os.path.join(args.out_dir, filename), "w") as file:
+            with open(fname_abs, "w") as file:
                 file.write(serialise_to_rsb(cur_patt))
+                
+            ext_proc = subprocess.Popen([args.lan10_bin, fname_abs, "-s"])
+            ext_meta["rsb_file"] = fname
         
-        self.forward_message(meta, message['data'], ext_meta)
+        self.forward_message(meta, message['data'], ext_meta, ext_proc)
     
                         
 def parse_args(): 
@@ -98,8 +107,9 @@ def parse_args():
                     help='output directory (default - "points")')
     
     
-    parser.add_argument('-t', '--timeout', type=int,
-                        help='generate virtual events')
+    parser.add_argument('-t', '--timeout', type=int, default=300,
+                        help='command execution timeout in seconds '
+                        '(default - 300)')
     parser.add_argument('--host', default='localhost',
                         help='server host (default - localhost)')
     parser.add_argument('-p', '--port', type=int, default=5555,

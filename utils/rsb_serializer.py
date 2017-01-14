@@ -21,8 +21,11 @@ def serialise_to_rsb(params: dict):
         if param == "channel":
             for i, channel in enumerate(params[param]):
                 for ch_par in channel:
-                    out += add_val("%s_%s[%s]"%(param, ch_par, i), 
-                                   channel[ch_par])
+                    val = "%s_%s[%s]"%(param, ch_par, i) 
+                    if ch_par == "params":
+                        val = "%ss_%s[%s]"%(param, ch_par, i) 
+                        
+                    out += add_val(val, channel[ch_par])
         else:
             out += add_val(param, params[param])
 
