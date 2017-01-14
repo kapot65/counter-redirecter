@@ -42,10 +42,10 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
     def cbk(self, message, client_obj, ext_meta, ext_proc=None):
         meta = message["meta"]
         
-        if "ext_meta" in meta:
-            meta["ext_meta"] = {**meta["ext_meta"], **ext_meta}
+        if "external_meta" in meta:
+            meta["external_meta"] = {**meta["external_meta"], **ext_meta}
         else:
-            meta["ext_meta"] = ext_meta
+            meta["external_meta"] = ext_meta
             
         if not self.check_junk(message["meta"]):
             
