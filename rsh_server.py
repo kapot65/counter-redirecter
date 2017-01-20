@@ -11,6 +11,7 @@ import json
 import time
 import asyncio
 import subprocess
+import logging
 from os import path, makedirs
 from argparse import ArgumentParser
 
@@ -21,6 +22,7 @@ cur_dir = path.dirname(path.realpath(__file__))
 if not cur_dir in sys.path: sys.path.append(cur_dir)
 del cur_dir
 
+from utils.popen_cbk import Popen_cbk
 from utils.rsb_serializer import serialise_to_rsb
 from utils.rsb import zero_suppression
 
@@ -39,8 +41,10 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
          
         """
         if "reply_type" in meta and meta["reply_type"] == "acquisition_status":
+            logger.debug("<- %s - junk"%(meta["reply_type"]))
             return True
         elif meta == {}:
+            logger.debug("<- empty message - junk")
             return True
         else:
             return False
@@ -55,24 +59,35 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             
         if not self.check_junk(message["meta"]):
             
+            logger.debug("-> closing transport connection")
             client_obj.transport.close()
             
             if ext_proc:
-                ext_proc.wait()
+                logger.debug("waiting for ext process fininshed")
+                ext_proc.join()
+                logger.debug("for extprocess fininshed")
+                
                 if "rsb" in ext_meta:
                     fname = ext_meta["rsb"]["filepath"]
                     
                     if args.zero_suppr:
+                        logger.debug("applying zero-suppr: file - %s"%(fname))
                         zero_suppression(fname, args.zero_thresh, 
-                                         args.zero_area)
+                                         args.zero_area_l, 
+                                         args.zero_area_r)
+                        logger.debug("zero-suppr applied: file - %s"%(fname))
                         
                         zsuppr_meta = {"threshold": args.zero_thresh,
-                                       "area": args.zero_area}
+                                       "area_left": args.zero_area_l,
+                                       "area_right": args.zero_area_r}
                         
-                        meta["rsb"]["zero_suppression"] = zsuppr_meta
+                        meta["external_meta"]["rsb"]\
+                            ["zero_suppression"] = zsuppr_meta
                     
-                    subprocess.Popen(["zip", "-1", "-j" ,"%s.zip"%(fname), 
-                                      "-rm", fname])
+                    logger.debug("zipping %s started"%(fname))       
+                    Popen_cbk(lambda: logger.debug("zipping %s done"%(fname)),
+                              ["zip", "-1", "-j" ,"%s.zip"%(fname), 
+                              "-rm", fname])
             
         self.send_message(meta, message["data"], 
                           message["header"]["data_type"])
@@ -96,6 +111,11 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
         meta = message['meta']
         ext_meta = {}
         ext_proc = None
+        
+        if 'command_type' in  meta:
+            logger.debug("-> %s"%(meta['command_type']))
+        else:
+            logger.warning("-> unrecognized message^ %s"%(meta))
   
         if 'command_type' in meta and meta['command_type'] == "acquire_point":
             cur_patt = pattern
@@ -107,10 +127,43 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             with open(fname_abs, "w") as file:
                 file.write(serialise_to_rsb(cur_patt))
                 
-            ext_proc = subprocess.Popen([args.lan10_bin, fname_abs, "-s"])
+            
+            logger.debug("lan10 acquisition process started "
+                         "(file - %s)"%(fname_abs))
+            end_cbk = lambda: logger.debug("acquisition %s done"%(fname_abs))
+            ext_proc = Popen_cbk(end_cbk, [args.lan10_bin, fname_abs, "-s"])
+            
             ext_meta["rsb"] = {"filepath": fname_abs}
+            
         
         self.forward_message(meta, message['data'], ext_meta, ext_proc)
+        
+
+def init_logger():
+    logger = logging.getLogger('rsh_server')
+    logger.setLevel(logging.DEBUG)
+
+    fh = logging.FileHandler(args.logfile)
+    if args.verbose:
+        fh.setLevel(logging.DEBUG)
+    else:
+        fh.setLevel(logging.INFO)
+
+    ch = logging.StreamHandler()
+    if args.verbose:
+        ch.setLevel(logging.DEBUG)
+    else:
+        ch.setLevel(logging.WARNING)
+
+    fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    formatter = logging.Formatter(fmt)
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    
+    logger.addHandler(fh)
+    logger.addHandler(ch)
+    
+    return logger
     
                         
 def parse_args(): 
@@ -141,20 +194,32 @@ def parse_args():
                              '%s)'%(def_rsh_path))
     acq_grp.add_argument('-z', '--zero-suppr', action="store_true",
                         help='use zero suppression on acquired data')
-    acq_grp.add_argument('--zero-thresh', type=int, default=500,
+    acq_grp.add_argument('--zero-thresh', type=int, default=700,
                         help='zero suppression threshold in bins '
                         '(default - 500)')
-    acq_grp.add_argument('--zero-area', type=int, default=100,
-                        help='neighborhood area size (in bins) which will be  '
-                        'saved during zero suppression'
+    acq_grp.add_argument('--zero-area-l', type=int, default=50,
+                        help='left neighborhood area size (in bins) which will'
+                        ' be  saved during zero suppression'
+                        '(default - 50)')
+    acq_grp.add_argument('--zero-area-r', type=int, default=100,
+                        help='left neighborhood area size (in bins) which will'
+                        ' be  saved during zero suppression'
                         '(default - 100)')
+    
+    parser.add_argument('-l', '--logfile', default="rsh_server.log",
+                        help='log filepath')
+    parser.add_argument("-v", "--verbose", help="increase output verbosity",
+                    action="store_true")
     
     return parser.parse_args()
               
           
 if __name__ == "__main__":
-    
     args = parse_args()
+    
+    if not "logger" in globals(): 
+        logger = init_logger()
+    
     
     pattern = json.load(open(args.rsb_conf))
     
@@ -164,11 +229,13 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     coro = loop.create_server(RshServerProtocol, "0.0.0.0", args.work_port)
     server = loop.run_until_complete(coro)
-    
+ 
     print('Serving on {}'.format(server.sockets[0].getsockname()))
+    logger.info('Serving on {}'.format(server.sockets[0].getsockname()))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
+        logger.info("Programm stoped by user input")
         pass
         
     server.close()
