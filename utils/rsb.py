@@ -9,7 +9,8 @@ Created on Tue Jan 17 01:56:18 2017
 import dfparser
 import numpy as np
 
-def zero_suppression(filepath, threshold=500, area_l=50, area_r=100):
+def zero_suppression(filepath, threshold=500, area_l=50, area_r=100,
+                     logger=None):
     """
       Обрезание шумов в файле данных платы Лан10-12PCI
       
@@ -32,7 +33,13 @@ def zero_suppression(filepath, threshold=500, area_l=50, area_r=100):
     
     for i in range(dataset.params["events_num"]):
         
-        data = dataset.get_event(i)["data"]
+        try:
+            data = dataset.get_event(i)["data"]
+        except:
+            if logger:
+                logger.warning("fail to extract event %s from %s"%
+                               (i, filepath))
+            break
         
         for ch in range(ch_num):
             ch1 = data[ch::ch_num]

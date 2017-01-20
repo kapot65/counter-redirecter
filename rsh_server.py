@@ -10,8 +10,8 @@ import sys
 import json
 import time
 import asyncio
-import subprocess
 import logging
+from threading import Lock
 from os import path, makedirs
 from argparse import ArgumentParser
 
@@ -25,6 +25,8 @@ del cur_dir
 from utils.popen_cbk import Popen_cbk
 from utils.rsb_serializer import serialise_to_rsb
 from utils.rsb import zero_suppression
+
+rsh_lock = Lock()
 
 class RshServerProtocol(DataforgeEnvelopeProtocol):
     """
@@ -65,7 +67,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             if ext_proc:
                 logger.debug("waiting for ext process fininshed")
                 ext_proc.join()
-                logger.debug("for extprocess fininshed")
+                logger.debug("extprocess fininshed")
                 
                 if "rsb" in ext_meta:
                     fname = ext_meta["rsb"]["filepath"]
@@ -74,7 +76,8 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                         logger.debug("applying zero-suppr: file - %s"%(fname))
                         zero_suppression(fname, args.zero_thresh, 
                                          args.zero_area_l, 
-                                         args.zero_area_r)
+                                         args.zero_area_r,
+                                         logger=logger)
                         logger.debug("zero-suppr applied: file - %s"%(fname))
                         
                         zsuppr_meta = {"threshold": args.zero_thresh,
@@ -91,7 +94,6 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             
         self.send_message(meta, message["data"], 
                           message["header"]["data_type"])
-        
         
     def forward_message(self, meta, data, ext_meta={}, ext_proc=None):
         loop = asyncio.new_event_loop()
@@ -130,7 +132,14 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             
             logger.debug("lan10 acquisition process started "
                          "(file - %s)"%(fname_abs))
-            end_cbk = lambda: logger.debug("acquisition %s done"%(fname_abs))
+            
+            if rsh_lock.locked():
+                logger.debug("board acquisition locked; waiting...")
+                
+            rsh_lock.acquire()
+            end_cbk = lambda: logger.debug("acquisition %s done"%(fname_abs));\
+                      rsh_lock.release()
+                      
             ext_proc = Popen_cbk(end_cbk, [args.lan10_bin, fname_abs, "-s"])
             
             ext_meta["rsb"] = {"filepath": fname_abs}
