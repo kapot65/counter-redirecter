@@ -17,14 +17,14 @@ from argparse import ArgumentParser
 
 from dftcp import DataforgeEnvelopeProtocol
 from dftcp import DataforgeEnvelopeEchoClient as DFClient
+from dfparser import serialise_to_rsh
 
 cur_dir = path.dirname(path.realpath(__file__))
 if not cur_dir in sys.path: sys.path.append(cur_dir)
 del cur_dir
 
 from utils.popen_cbk import Popen_cbk
-from utils.rsb_serializer import serialise_to_rsb
-from utils.rsb import zero_suppression
+from utils.rsb import combine_with_rsb
 
 rsh_lock = Lock()
 
@@ -52,6 +52,11 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             return False
     
     def cbk(self, message, client_obj, ext_meta, ext_proc=None):
+        """
+          Функция дополняет сообщения внешними метаданными
+          
+        """
+        
         meta = message["meta"]
         
         if "external_meta" in meta:
@@ -109,7 +114,14 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
         loop.run_forever()
         
     def process_message(self, message):
-        
+        """
+          Обработка входящих сообщений.
+          В этой функции происходит анализ входящей команды. Если приходит
+          команда на сбор точки - сервер вызывает программу для набора точки
+          с платы lan10-12pci. В остальных случаях сервер просто транслирует 
+          команду на основной сервер.
+          
+        """
         meta = message['meta']
         ext_meta = {}
         ext_proc = None
@@ -127,7 +139,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             fname_abs = path.abspath(path.join(args.out_dir, fname))
             
             with open(fname_abs, "w") as file:
-                file.write(serialise_to_rsb(cur_patt))
+                file.write(serialise_to_rsh(cur_patt))
                 
             
             logger.debug("lan10 acquisition process started "
@@ -220,10 +232,15 @@ def parse_args():
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                     action="store_true")
     
+    test_grp = parser.add_argument_group("Test")
+    test_grp.add_argument('--testfile', type=str, default=None,
+                        help='use default rsb file instead of acquisition')
+    
     return parser.parse_args()
               
           
 if __name__ == "__main__":
+    raise Exception
     args = parse_args()
     
     if not "logger" in globals(): 

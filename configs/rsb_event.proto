@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package Rsh;
+
+message Point {
+        
+  message Channel {
+          
+    message Event {
+        double time = 1; // время начала кадра события в секундах
+        bytes data = 2; // данные события
+    }
+          
+    uint32 num = 1; 
+    repeated Event events = 2;
+  }
+        
+  repeated Channel channels = 1;
+}
