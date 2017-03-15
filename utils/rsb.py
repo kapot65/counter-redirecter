@@ -90,7 +90,7 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
     ch_num = rsb_ds.params["channel_number"]
     
     use_time_corr = False
-    if events_num:
+    if events_num > 0:
         ev = rsb_ds.get_event(0)
         if not "timestamp" in ev:
             use_time_corr = True 

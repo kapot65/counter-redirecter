@@ -12,7 +12,7 @@ import time
 import asyncio
 import logging
 from threading import Lock
-from os import path, makedirs
+from os import path, makedirs, remove
 from argparse import ArgumentParser
 
 from dftcp import DataforgeEnvelopeProtocol
@@ -78,9 +78,9 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                                  threshold=args.zero_thresh,
                                  area_l=args.zero_area_l,
                                  area_r=args.zero_area_r)
-            
-        
-        print(len(data))
+                
+                if not args.testfile:
+                    remove(params["filepath"])
             
         self.send_message(meta, data, data_type)
         
