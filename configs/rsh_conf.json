@@ -10,7 +10,7 @@
         "type": "SYNCHRO_PROGRAMM",
         "params": ["Default"],
         "gain": 1   
-    }
+    },
     "sample_freq": 3.125e+6,
     "pre_history": 8,
     "packet_number": 1,

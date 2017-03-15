@@ -51,60 +51,51 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
         else:
             return False
     
-    def cbk(self, message, client_obj, ext_meta, ext_proc=None):
+    def cbk(self, message, client_obj, params=None):
         """
           Функция дополняет сообщения внешними метаданными
           
         """
         
         meta = message["meta"]
-        
-        if "external_meta" in meta:
-            meta["external_meta"] = {**meta["external_meta"], **ext_meta}
-        else:
-            meta["external_meta"] = ext_meta
-            
+        data = message["data"]
+        data_type = message["header"]["data_type"]
         if not self.check_junk(message["meta"]):
             
             logger.debug("-> closing transport connection")
             client_obj.transport.close()
             
-            if ext_proc:
+            if params and type(params) is dict and "proc" in params:
                 logger.debug("waiting for ext process fininshed")
-                ext_proc.join()
+                params["proc"].join()
                 logger.debug("extprocess fininshed")
                 
-                if "rsb" in ext_meta:
-                    fname = ext_meta["rsb"]["filepath"]
-                    
-                    if args.zero_suppr:
-                        logger.debug("applying zero-suppr: file - %s"%(fname))
-                        zero_suppression(fname, args.zero_thresh, 
-                                         args.zero_area_l, 
-                                         args.zero_area_r,
-                                         logger=logger)
-                        logger.debug("zero-suppr applied: file - %s"%(fname))
-                        
-                        zsuppr_meta = {"threshold": args.zero_thresh,
-                                       "area_left": args.zero_area_l,
-                                       "area_right": args.zero_area_r}
-                        
-                        meta["external_meta"]["rsb"]\
-                            ["zero_suppression"] = zsuppr_meta
-                    
-                    logger.debug("zipping %s started"%(fname))       
-                    Popen_cbk(lambda: logger.debug("zipping %s done"%(fname)),
-                              ["zip", "-1", "-j" ,"%s.zip"%(fname), 
-                              "-rm", fname])
             
-        self.send_message(meta, message["data"], 
-                          message["header"]["data_type"])
+            if params and type(params) is dict and "filepath" in params:
+                
+                meta, data, data_type = \
+                combine_with_rsb(meta, data, data_type, params["filepath"],
+                                 threshold=args.zero_thresh,
+                                 area_l=args.zero_area_l,
+                                 area_r=args.zero_area_r)
+            
         
-    def forward_message(self, meta, data, ext_meta={}, ext_proc=None):
+        print(len(data))
+            
+        self.send_message(meta, data, data_type)
+        
+    def forward_message(self, meta, data, params):
+        """
+          Проброс сообщения на сервер КАМАК
+          
+          @meta - метаданные сообщения
+          @data - бинарные данные сообщения
+          @params - параметры, передаваемые в callback (self.cbk)
+          
+        """
         loop = asyncio.new_event_loop()
         
-        callback = lambda msg, client: self.cbk(msg, client, 
-                                                ext_meta, ext_proc)
+        callback = lambda msg, client: self.cbk(msg, client, params)
         client = lambda: DFClient(loop, meta, callback=callback, 
                                   timeout_sec=args.timeout)
         
@@ -123,8 +114,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
           
         """
         meta = message['meta']
-        ext_meta = {}
-        ext_proc = None
+        params = None
         
         if 'command_type' in  meta:
             logger.debug("-> %s"%(meta['command_type']))
@@ -151,13 +141,21 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             rsh_lock.acquire()
             end_cbk = lambda: logger.debug("acquisition %s done"%(fname_abs));\
                       rsh_lock.release()
-                      
-            ext_proc = Popen_cbk(end_cbk, [args.lan10_bin, fname_abs, "-s"])
+                
             
-            ext_meta["rsb"] = {"filepath": fname_abs}
+            if args.testfile:
+                rsh_acq_command = ["python", '-c', 
+                                   'import time; time.sleep(%s)'%
+                                   (meta["acquisition_time"])]
+                fname_abs = path.abspath(args.testfile)
+            else:
+                rsh_acq_command = [args.lan10_bin, fname_abs, "-s"]
+            
+            params = {"proc": Popen_cbk(end_cbk, rsh_acq_command),
+                      "filepath": fname_abs}
             
         
-        self.forward_message(meta, message['data'], ext_meta, ext_proc)
+        self.forward_message(meta, message['data'], params)
         
 
 def init_logger():
@@ -240,12 +238,10 @@ def parse_args():
               
           
 if __name__ == "__main__":
-    raise Exception
     args = parse_args()
     
     if not "logger" in globals(): 
         logger = init_logger()
-    
     
     pattern = json.load(open(args.rsb_conf))
     

@@ -10,9 +10,17 @@ counter-redirecter перенаправляет весь поток на сер�
 
 # Требования
 
+- (Protobuf 3.2.0+)[https://github.com/google/protobuf/releases]
+
 - Установленая программа [lan10-12pci_base](https://bitbucket.org/Kapot/lan10-12pci_base)
 - Установленный zip (команда zip должна быть доступна через консоль)
 
 # Установка
+1. Установить зависимости python
+
+     pip3 install -r requrements.txt
+
+2. Скомпилировать парсер
 
       cd configs && protoc rsb_event.proto  --python_out ../utils && cd ..
+

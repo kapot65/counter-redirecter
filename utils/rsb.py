@@ -46,24 +46,26 @@ def apply_zsupression(data: np.ndarray, threshold: int=500,
     return events
 
         
-def combine_with_rsb(df_message: bytearray, rsb_file, threshold: int=500, 
-                     area_l: int=50, area_r: int=100) -> bytearray:
+def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file, 
+                     threshold: int=500, area_l: int=50, 
+                     area_r: int=100) -> (dict, bytearray, int):
     """
       Добавление данных, набранных платой Руднева-Шиляева с основным файлом
       с точками.
-      @df_message - основное сообщение с точками
+      
+      @meta - метаданные сообщения с точками
+      @data - бинарные данные сообщения с точками
+      @data_type - тип бинарных данных
       @rsb_file - файл с платы Руднева-Шиляева
       @threshold - порог амплитуды события (параметр zero-suppression)
       @area_l - область около события, которая будет сохранена (параметр 
       zero-suppression)
       @area_r - область около события, которая будет сохранена (параметр 
       zero-suppression)
-      @return - соединенное сообщение
+      @return - (meta, data, data_type)
       
     """
-    header, meta, data = dfparser.parse_message(df_message)
     
-    global rsb_ds, bin_time
     rsb_ds = dfparser.RshPackage(rsb_file)
     
     if not("external_meta" in meta and meta["external_meta"]):
@@ -96,10 +98,8 @@ def combine_with_rsb(df_message: bytearray, rsb_file, threshold: int=500,
                                      events_num))
             meta["external_meta"]["correcting_time"] = "linear"
         
-    
     meta["external_meta"]["lan10"]["blocks_info"] = []
    
-    global point
     point = rsb_event_pb2.Point()
     channels = [point.channels.add(num=ch) for ch in range(ch_num)]
     for i in range(events_num):
@@ -129,8 +129,6 @@ def combine_with_rsb(df_message: bytearray, rsb_file, threshold: int=500,
     
     data += point.SerializeToString()
     
-    combined = dfparser.create_message(meta, data, 
-                                       data_type=header['data_type'])
-    return combined
-    
+    return meta, data, data_type
+
         
