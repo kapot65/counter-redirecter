@@ -7,7 +7,7 @@ message Point {
   message Channel {
           
     message Event {
-        double time = 1; // время начала кадра события в секундах
+        uint64 time = 1; // время начала кадра события в наносекундах с начала эпохи
         bytes data = 2; // данные события
     }
           
