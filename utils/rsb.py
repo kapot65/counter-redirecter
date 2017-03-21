@@ -66,6 +66,8 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
       
     """
     
+    sec_coef = 10**9
+    
     rsb_ds = dfparser.RshPackage(rsb_file)
     
     if not("external_meta" in meta and meta["external_meta"]):
@@ -82,9 +84,9 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
         "blocks_info": []
     }
         
-    begin_time = parse(rsb_ds.params["start_time"]).timestamp()
-    end_time = parse(rsb_ds.params["end_time"]).timestamp()
-    bin_time = rsb_ds.params["sample_freq"]**-1
+    begin_time = parse(rsb_ds.params["start_time"]).timestamp()*sec_coef
+    end_time = parse(rsb_ds.params["end_time"]).timestamp()*sec_coef
+    bin_time = (rsb_ds.params["sample_freq"]**-1)*sec_coef
     b_size = rsb_ds.params["b_size"]
     events_num = rsb_ds.params["events_num"]
     ch_num = rsb_ds.params["channel_number"]
@@ -94,7 +96,8 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
         ev = rsb_ds.get_event(0)
         if not "ns_since_epoch" in ev:
             use_time_corr = True 
-            times = list(np.linspace(begin_time, end_time - bin_time*b_size, 
+            times = list(np.linspace(begin_time, end_time - 
+                                     int(bin_time*b_size), 
                                      events_num))
             meta["external_meta"]["correcting_time"] = "linear"
         
@@ -108,7 +111,8 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
         if use_time_corr:
             time = times[i]
         else:
-            time = event_data["ns_since_epoch"]    
+            time = event_data["ns_since_epoch"] 
+            print(time)
           
         start_idx = []
         for ch in range(ch_num):
@@ -116,7 +120,7 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
             ch_data = event_data["data"][ch::ch_num]
             for frame in apply_zsupression(ch_data, threshold, area_l, area_r):
                 event = channels[ch].events.add()
-                event.time = int(time + frame[0]*bin_time*(10**9))
+                event.time = int(time + frame[0]*bin_time)
                 event.data = ch_data[frame[0]:frame[1]].astype(np.int16)\
                              .tobytes()
        
@@ -130,5 +134,3 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
     data += point.SerializeToString()
     
     return meta, data, data_type
-
-        
