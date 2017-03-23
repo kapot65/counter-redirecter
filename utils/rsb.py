@@ -109,7 +109,6 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
             time = times[i]
         else:
             time = event_data["ns_since_epoch"] 
-            print(time)
           
         for ch in range(ch_num):
             block = channels[ch].blocks.add(time=int(time))
@@ -125,5 +124,3 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
     data += point.SerializeToString()
     
     return meta, data, data_type
-
-        
