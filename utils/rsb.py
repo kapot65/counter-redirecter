@@ -125,5 +125,3 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
     data += point.SerializeToString()
     
     return meta, data, data_type
-
-        
