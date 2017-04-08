@@ -19,32 +19,7 @@ del cur_dir
 
 import rsb_event_pb2
 
-
-def apply_zsupression(data: np.ndarray, threshold: int=500, 
-                          area_l: int=50, area_r: int=100) -> tuple:
-    """
-      Обрезание шумов в файле данных платы Лан10-12PCI
-      
-      Функция расчитана на файлы данных с максимальным размером кадра
-      (непрерывное считывание с платы).
-      
-      @data - данные кадра (отдельный канал)
-      @threshold - порог амплитуды события
-      @area_l - область около события, которая будет сохранена
-      @area_r - область около события, которая будет сохранена
-      
-      @return список границ события
-      
-    """
-    peaks = np.where(data > threshold)[0]
-    dists = peaks[1:] - peaks[:-1]
-    gaps = np.append(np.array([0]), np.where(dists > area_r)[0] + 1)
-    
-    events = ((peaks[gaps[gap]] - area_l, peaks[gaps[gap + 1] - 1] + area_r) 
-              for gap in range(0, len(gaps) - 1))
-    
-    return events
-
+from signal_utils.extract_utils import apply_zsupression
         
 def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file, 
                      threshold: int=500, area_l: int=50, 

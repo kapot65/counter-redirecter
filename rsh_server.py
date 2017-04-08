@@ -11,6 +11,7 @@ import json
 import time
 import asyncio
 import logging
+import zipfile
 from threading import Lock
 from os import path, makedirs, remove
 from argparse import ArgumentParser
@@ -231,8 +232,13 @@ def parse_args():
                     action="store_true")
     
     test_grp = parser.add_argument_group("Test")
-    test_grp.add_argument('--testfile', type=str, default=None,
+    test_grp.add_argument('--test', action="store_true",
                         help='use default rsb file instead of acquisition')
+    
+    def_rsb = path.abspath(path.join(path.dirname(__file__), 
+                                     "tests/data/test_point.zip"))
+    test_grp.add_argument('--testfile', type=str, default=def_rsb,
+                        help='default rsb filepath (default - %s)'%(def_rsb))
     
     return parser.parse_args()
               
@@ -242,6 +248,11 @@ if __name__ == "__main__":
     
     if not "logger" in globals(): 
         logger = init_logger()
+        
+    if args.test and args.testfile.endswith(".zip"):
+        with zipfile.ZipFile(args.testfile,"r") as zip_ref:
+            zip_ref.extractall(path.dirname(args.testfile))
+            args.testfile = args.testfile[:-4] + '.rsb'
     
     pattern = json.load(open(args.rsb_conf))
     
