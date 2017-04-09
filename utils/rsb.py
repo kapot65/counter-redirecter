@@ -21,16 +21,14 @@ import rsb_event_pb2
 
 from signal_utils.extract_utils import apply_zsupression
         
-def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file, 
-                     threshold: int=500, area_l: int=50, 
-                     area_r: int=100) -> (dict, bytearray, int):
+def rsb_to_df(ext_meta: dict, rsb_file, 
+              threshold: int=500, area_l: int=50, 
+              area_r: int=100) -> (dict, bytearray, int):
     """
       Добавление данных, набранных платой Руднева-Шиляева с основным файлом
       с точками.
       
       @meta - метаданные сообщения с точками
-      @data - бинарные данные сообщения с точками
-      @data_type - тип бинарных данных
       @rsb_file - файл с платы Руднева-Шиляева
       @threshold - порог амплитуды события (параметр zero-suppression)
       @area_l - область около события, которая будет сохранена (параметр 
@@ -41,22 +39,18 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
       
     """
     
-    sec_coef = 10**9
+    sec_coef = 10e+9
     
     rsb_ds = dfparser.RshPackage(rsb_file)
     
-    if not("external_meta" in meta and meta["external_meta"]):
-        meta["external_meta"] = {}
-    
-    meta["external_meta"]["lan10"] = {
-        "params": rsb_ds.params,
-        "process_params": { 
-            "threshold": threshold,
+    meta = {}
+    meta["external_meta"] = ext_meta
+    meta["params"] = rsb_ds.params
+    meta["process_params"] = {  
+            "threshold": threshold, 
             "area_l": area_l, 
             "area_r": area_r
-        },
-        "bin_offset": len(data)
-    }
+        }
         
     begin_time = parse(rsb_ds.params["start_time"]).timestamp()*sec_coef
     end_time = parse(rsb_ds.params["end_time"]).timestamp()*sec_coef
@@ -73,7 +67,7 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
             times = list(np.linspace(begin_time, end_time - 
                                      int(bin_time*b_size), 
                                      events_num))
-            meta["external_meta"]["correcting_time"] = "linear"
+            meta["correcting_time"] = "linear"
    
     point = rsb_event_pb2.Point()
     channels = [point.channels.add(num=ch) for ch in range(ch_num)] 
@@ -95,7 +89,8 @@ def combine_with_rsb(meta: dict, data: bytearray, data_type: int, rsb_file,
                 event.data = ch_data[frame[0]:frame[1]].astype(np.int16)\
                              .tobytes()
     
-    meta["external_meta"]["lan10"]["bin_size"] = point.ByteSize()
-    data += point.SerializeToString()
+    meta["bin_offset"] = 0
+    meta["bin_size"] = point.ByteSize()
+    data = point.SerializeToString()
     
-    return meta, data, data_type
+    return meta, data

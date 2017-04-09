@@ -13,19 +13,19 @@ import asyncio
 import logging
 import zipfile
 from threading import Lock
-from os import path, makedirs, remove
+from os import path, makedirs, remove, listdir
 from argparse import ArgumentParser
 
 from dftcp import DataforgeEnvelopeProtocol
 from dftcp import DataforgeEnvelopeEchoClient as DFClient
-from dfparser import serialise_to_rsh
+from dfparser import serialise_to_rsh, create_message
 
 cur_dir = path.dirname(path.realpath(__file__))
 if not cur_dir in sys.path: sys.path.append(cur_dir)
 del cur_dir
 
 from utils.popen_cbk import Popen_cbk
-from utils.rsb import combine_with_rsb
+from utils.rsb import rsb_to_df
 
 rsh_lock = Lock()
 
@@ -73,12 +73,41 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                 
             
             if params and type(params) is dict and "filepath" in params:
+                ext_meta = meta.get("external_meta", {})
                 
-                meta, data, data_type = \
-                combine_with_rsb(meta, data, data_type, params["filepath"],
-                                 threshold=args.zero_thresh,
-                                 area_l=args.zero_area_l,
-                                 area_r=args.zero_area_r)
+                session = ext_meta.get("session", "no_session")
+                group = ext_meta.get("group", "no_group")
+                index = int(ext_meta.get("index", 0))
+                hv1 = int(ext_meta.get("HV1_value", -1))
+                hv2 = int(ext_meta.get("HV2_value", -1))
+                
+                out_dir = path.join(args.out_dir, "%s/%s"%(session, group))
+                if not path.exists(out_dir):
+                    makedirs(out_dir)
+                    
+                out_dir = path.join(out_dir, "set_%s"%(len(listdir(out_dir))))
+                if not path.exists(out_dir):
+                    makedirs(out_dir)
+                
+                out_file = "p%s"%(index)
+                if hv1 != -1 or hv2 != -1:
+                    out_file += "("
+                    if hv1 != -1:
+                        out_file += "HV1=%s"%(hv1)
+                        if hv2 != -1:
+                            out_file += ";"
+                    if hv2 != -1:
+                        out_file += "HV2=%s"%(hv2)
+                    out_file += ")"
+                
+                
+                meta_df, data_df = rsb_to_df(ext_meta, params["filepath"],
+                                             threshold=args.zero_thresh,
+                                             area_l=args.zero_area_l,
+                                             area_r=args.zero_area_r)
+                
+                with open(path.join(out_dir, out_file), "wb") as file:
+                    file.write(create_message(meta_df, data_df))
                 
                 if not args.testfile:
                     remove(params["filepath"])
@@ -129,12 +158,19 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             fname = "%s.rsb"%(time.strftime("%Y%m%d-%H%M%S"))
             fname_abs = path.abspath(path.join(args.out_dir, fname))
             
-            with open(fname_abs, "w") as file:
-                file.write(serialise_to_rsh(cur_patt))
+            if args.testfile:
+                rsh_acq_command = ["python", '-c', 
+                                   'import time; time.sleep(%s)'%
+                                   (meta["acquisition_time"])]
+                fname_abs = path.abspath(args.testfile)
+            else:
+                with open(fname_abs, "w") as file:
+                    file.write(serialise_to_rsh(cur_patt))
+                rsh_acq_command = [args.lan10_bin, fname_abs, "-s"]
                 
             
-            logger.debug("lan10 acquisition process started "
-                         "(file - %s)"%(fname_abs))
+            logger.debug("lan10 acquisition process started (file - %s)"
+                         %(fname_abs))
             
             if rsh_lock.locked():
                 logger.debug("board acquisition locked; waiting...")
@@ -142,15 +178,6 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             rsh_lock.acquire()
             end_cbk = lambda: logger.debug("acquisition %s done"%(fname_abs));\
                       rsh_lock.release()
-                
-            
-            if args.testfile:
-                rsh_acq_command = ["python", '-c', 
-                                   'import time; time.sleep(%s)'%
-                                   (meta["acquisition_time"])]
-                fname_abs = path.abspath(args.testfile)
-            else:
-                rsh_acq_command = [args.lan10_bin, fname_abs, "-s"]
             
             params = {"proc": Popen_cbk(end_cbk, rsh_acq_command),
                       "filepath": fname_abs}
