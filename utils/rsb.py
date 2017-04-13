@@ -84,6 +84,7 @@ def rsb_to_df(ext_meta: dict, rsb_file,
             
             ch_data = event_data["data"][ch::ch_num]
             for frame in apply_zsupression(ch_data, threshold, area_l, area_r):
+                frame = np.clip(frame, 0, ch_data.shape[0] - 1)
                 event = block.events.add()
                 event.time = int(frame[0]*bin_time)
                 event.data = ch_data[frame[0]:frame[1]].astype(np.int16)\
