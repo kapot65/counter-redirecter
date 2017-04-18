@@ -1,4 +1,5 @@
 https://github.com/kapot65/python-df-parser/archive/master.zip
+https://github.com/kapot65/singnal-utils/archive/master.zip
 dftcp>=0.0.3
 scipy
 protobuf>=3.2.0
