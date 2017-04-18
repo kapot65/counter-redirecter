@@ -37,6 +37,12 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
       информацию о набранном файле в ответное сообщение.
       
     """
+    last_index = -1
+    
+    #def __init__(self, *args, **kwargs):
+    #    self.last_index = -1;
+    #    super(DataforgeEnvelopeProtocol, self).__init__(*args, **kwargs)
+
     def check_junk(self, meta):
         """
          Функция проверяет, является ли пересылаемое сообщение информационным
@@ -77,15 +83,22 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                 
                 session = ext_meta.get("session", "no_session")
                 group = ext_meta.get("group", "no_group")
-                index = int(ext_meta.get("index", 0))
+                index = int(ext_meta.get("point_index", 0))
+                iteration = int(ext_meta.get("iteration", -1))
                 hv1 = int(ext_meta.get("HV1_value", -1))
                 hv2 = int(ext_meta.get("HV2_value", -1))
                 
                 out_dir = path.join(args.out_dir, "%s/%s"%(session, group))
                 if not path.exists(out_dir):
                     makedirs(out_dir)
-                    
-                out_dir = path.join(out_dir, "set_%s"%(len(listdir(out_dir))))
+                  
+                if self.last_index != iteration:
+                    self.last_index = iteration
+                    set_ind = len(listdir(out_dir))
+                else:
+                    set_ind = max(0, len(listdir(out_dir)) - 1)
+                   
+                out_dir = path.join(out_dir, "set_%s"%(set_ind))
                 if not path.exists(out_dir):
                     makedirs(out_dir)
                 
@@ -184,7 +197,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             
         
         self.forward_message(meta, message['data'], params)
-        
+
 
 def init_logger():
     logger = logging.getLogger('rsh_server')
