@@ -56,6 +56,18 @@ def rsb_to_df(ext_meta: dict, rsb_file,
     end_time = parse(rsb_ds.params["end_time"]).timestamp()*sec_coef
     bin_time = (rsb_ds.params["sample_freq"]**-1)*sec_coef
     b_size = rsb_ds.params["b_size"]
+    
+    
+    if rsb_ds.params["events_num"] == -1:
+        meta["recalc_events_num"] = True
+        rsb_ds.params["events_num"] = np.iinfo(int).max
+        for i in range(np.iinfo(int).max):
+            try:
+                rsb_ds.get_event(i)
+            except Exception as e:
+                rsb_ds.params["events_num"] = i
+                break
+    
     events_num = rsb_ds.params["events_num"]
     ch_num = rsb_ds.params["channel_number"]
     
