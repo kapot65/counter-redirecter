@@ -28,6 +28,7 @@ from utils.popen_cbk import Popen_cbk
 from utils.rsb import rsb_to_df
 
 rsh_lock = Lock()
+convert_lock = Lock()
 
 class RshServerProtocol(DataforgeEnvelopeProtocol):
     """
@@ -112,20 +113,26 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                     if hv2 != -1:
                         out_file += "HV2=%s"%(hv2)
                     out_file += ")"
+                out_file += '.df'
                 
                 
-                meta_df, data_df = rsb_to_df(ext_meta, params["filepath"],
-                                             threshold=args.zero_thresh,
-                                             area_l=args.zero_area_l,
-                                             area_r=args.zero_area_r)
+                with convert_lock:
+                    self.send_message(meta, data, data_type)
+                    meta_df, data_df = rsb_to_df(ext_meta, params["filepath"],
+                                                 threshold=args.zero_thresh,
+                                                 area_l=args.zero_area_l,
+                                                 area_r=args.zero_area_r)
+                    
+                    with open(path.join(out_dir, out_file), "wb") as file:
+                        file.write(create_message(meta_df, data_df))
+                    
+                    if not args.test:
+                        remove(params["filepath"])
                 
-                with open(path.join(out_dir, out_file), "wb") as file:
-                    file.write(create_message(meta_df, data_df))
-                
-                if not args.testfile:
-                    remove(params["filepath"])
-            
-        self.send_message(meta, data, data_type)
+            else:
+                self.send_message(meta, data, data_type)
+                            
+        
         
     def forward_message(self, meta, data, params):
         """
@@ -171,7 +178,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             fname = "%s.rsb"%(time.strftime("%Y%m%d-%H%M%S"))
             fname_abs = path.abspath(path.join(args.out_dir, fname))
             
-            if args.testfile:
+            if args.test:
                 rsh_acq_command = ["python", '-c', 
                                    'import time; time.sleep(%s)'%
                                    (meta["acquisition_time"])]
