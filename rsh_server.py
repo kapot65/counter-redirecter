@@ -95,15 +95,15 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                   
                 if self.last_index != iteration:
                     self.last_index = iteration
-                    set_ind = len(listdir(out_dir))
+                    set_ind = len(listdir(out_dir)) + 1
                 else:
-                    set_ind = max(0, len(listdir(out_dir)) - 1)
+                    set_ind = max(1, len(listdir(out_dir)))
                    
                 out_dir = path.join(out_dir, "set_%s"%(set_ind))
                 if not path.exists(out_dir):
                     makedirs(out_dir)
                 
-                out_file = "p%s"%(index)
+                out_file = "p%s(%ss)"%(index, meta["acquisition_time"])
                 if hv1 != -1 or hv2 != -1:
                     out_file += "("
                     if hv1 != -1:
