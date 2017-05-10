@@ -25,7 +25,7 @@ if not cur_dir in sys.path: sys.path.append(cur_dir)
 del cur_dir
 
 from utils.popen_cbk import Popen_cbk
-from utils.rsb import rsb_to_df
+from signal_utils.convert_utils import rsb_to_df
 
 rsh_lock = Lock()
 convert_lock = Lock()
