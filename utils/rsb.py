@@ -17,8 +17,6 @@ cur_dir = path.dirname(path.realpath(__file__))
 if not cur_dir in sys.path: sys.path.append(cur_dir)
 del cur_dir
 
-import rsb_event_pb2
-
 from signal_utils.extract_utils import apply_zsupression
         
 def rsb_to_df(ext_meta: dict, rsb_file, 
@@ -81,7 +79,7 @@ def rsb_to_df(ext_meta: dict, rsb_file,
                                      events_num))
             meta["correcting_time"] = "linear"
    
-    point = rsb_event_pb2.Point()
+    point = dfparser.Point()
     channels = [point.channels.add(num=ch) for ch in range(ch_num)] 
     for i in range(events_num):
         event_data = rsb_ds.get_event(i)
