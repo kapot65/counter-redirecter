@@ -73,13 +73,8 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
             logger.debug("-> closing transport connection")
             client_obj.transport.close()
             
-            if params and type(params) is dict and "proc" in params:
-                logger.debug("waiting for ext process fininshed")
-                params["proc"].join()
-                logger.debug("extprocess fininshed")
-                
-            
-            if params and type(params) is dict and "filepath" in params:
+            if params and type(params) is dict and \
+               "filepath" in params and "proc" in params:
                 ext_meta = meta.get("external_meta", {})
                 
                 session = ext_meta.get("session", "no_session")
@@ -97,7 +92,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                     self.last_index = iteration
                     set_ind = len(listdir(out_dir)) + 1
                 else:
-                    set_ind = max(1, len(listdir(out_dir)))
+                    set_ind = max(1, len(listdir(out_dir)) + 1)
                    
                 out_dir = path.join(out_dir, "set_%s"%(set_ind))
                 if not path.exists(out_dir):
@@ -118,16 +113,39 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                 
                 with convert_lock:
                     self.send_message(meta, data, data_type)
-                    meta_df, data_df = rsb_to_df(ext_meta, params["filepath"],
-                                                 threshold=args.zero_thresh,
-                                                 area_l=args.zero_area_l,
-                                                 area_r=args.zero_area_r)
                     
-                    with open(path.join(out_dir, out_file), "wb") as file:
-                        file.write(create_message(meta_df, data_df))
+                    ret_code = 0
+                    logger.debug("waiting for ext process fininshed")
+                    ret_code = params["proc"].wait()
+                    logger.debug("extprocess fininshed")
                     
-                    if not args.test:
-                        remove(params["filepath"])
+                    if ret_code != 0:
+                        descr = "Error in Lan10-12PCI acquisition programm\n"\
+                        "stdout:\n%s\nstderr:\n%s\n"%(
+                                params["proc"].stdout.read().decode(),
+                                params["proc"].stderr.read().decode())
+                        
+                        error_msg = {
+                            "type" : "reply",
+                            "reply_type" : "error",
+                            "error_code": 6,
+                            "stage" : "lan 10 acquisition process",
+                            "description" : descr
+                        }
+                        self.send_message(error_msg, b'', 0)
+                    
+                    else:
+                        meta_df, data_df = rsb_to_df(ext_meta, 
+                                                     params["filepath"],
+                                                     threshold=args.zero_thresh,
+                                                     area_l=args.zero_area_l,
+                                                     area_r=args.zero_area_r)
+                        
+                        with open(path.join(out_dir, out_file), "wb") as file:
+                            file.write(create_message(meta_df, data_df))
+                        
+                        if not args.test:
+                            remove(params["filepath"])
                 
             else:
                 self.send_message(meta, data, data_type)

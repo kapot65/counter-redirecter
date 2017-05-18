@@ -19,15 +19,15 @@ def Popen_cbk(cbk, *args, **kwargs):
     onExit is a callable object, and popenArgs is a list/tuple of args that 
     would give to subprocess.Popen.
     """
-    def run_in_thread(cbk, args, kwargs):
-        proc = subprocess.Popen(*args, **kwargs)
+    def run_in_thread(proc, cbk):
         proc.wait()
         cbk()
         return
-        
-    thread = threading.Thread(target=run_in_thread, args=(cbk, args, kwargs))
     
+    proc = subprocess.Popen(*args, **kwargs, 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE)   
+    thread = threading.Thread(target=run_in_thread, args=(proc, cbk))
     thread.start()
 
-    return thread
-    
+    return proc   
