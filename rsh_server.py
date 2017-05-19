@@ -161,16 +161,26 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
           @params - параметры, передаваемые в callback (self.cbk)
           
         """
-        loop = asyncio.new_event_loop()
-        
-        callback = lambda msg, client: self.cbk(msg, client, params)
-        client = lambda: DFClient(loop, meta, callback=callback, 
-                                  timeout_sec=args.timeout)
-        
-        coro = loop.create_connection(client, args.host, args.port)
-        
-        loop.run_until_complete(coro)
-        loop.run_forever()
+        try:
+            loop = asyncio.new_event_loop()
+            
+            callback = lambda msg, client: self.cbk(msg, client, params)
+            client = lambda: DFClient(loop, meta, callback=callback, 
+                                      timeout_sec=args.timeout)
+            
+            coro = loop.create_connection(client, args.host, args.port)
+            
+            loop.run_until_complete(coro)
+            loop.run_forever()
+        except OSError as e:
+            error_msg = {
+                "type" : "reply",
+                "reply_type" : "error",
+                "error_code": 2,
+                "stage" : "lan 10 redirecor forwarding error",
+                "description" : "lan 10 redirecor forwarding error\n" + str(e)
+            }
+            self.send_message(error_msg, b'', 0)
         
     def process_message(self, message):
         """
