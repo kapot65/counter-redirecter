@@ -92,7 +92,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                     self.last_index = iteration
                     set_ind = len(listdir(out_dir)) + 1
                 else:
-                    set_ind = max(1, len(listdir(out_dir)) + 1)
+                    set_ind = max(1, len(listdir(out_dir)))
                    
                 out_dir = path.join(out_dir, "set_%s"%(set_ind))
                 if not path.exists(out_dir):
