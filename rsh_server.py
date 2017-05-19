@@ -39,6 +39,7 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
       
     """
     last_index = -1
+    last_point_index = -1
     
     #def __init__(self, *args, **kwargs):
     #    self.last_index = -1;
@@ -88,11 +89,13 @@ class RshServerProtocol(DataforgeEnvelopeProtocol):
                 if not path.exists(out_dir):
                     makedirs(out_dir)
                   
-                if self.last_index != iteration:
+                if self.last_index != iteration or \
+                   abs(index - self.last_point_index) != 1:
                     self.last_index = iteration
                     set_ind = len(listdir(out_dir)) + 1
                 else:
                     set_ind = max(1, len(listdir(out_dir)))
+                self.last_point_index = index
                    
                 out_dir = path.join(out_dir, "set_%s"%(set_ind))
                 if not path.exists(out_dir):
